@@ -1,14 +1,18 @@
-import numpy as np
 from objdict import ObjDict
 
 
 class GmshMesh(ObjDict):
+    """Python representation of a Gmsh MSH file plus some convenience methods.
+
+    Note: Implementation is not complete.
+    """
 
     def __init__(self, filename) -> None:
 
         f = open(filename, 'r')
         line = f.readline().strip()
 
+        # Read file
         while line:
             if line == '$MeshFormat':
                 self.meshFormat = readMeshFormat(f)
@@ -26,30 +30,51 @@ class GmshMesh(ObjDict):
             nexttoken(f)
             line = f.readline().strip()
 
-    def findGroup(self, entityDim=None):
-        g = ObjDict()
-        g.nodeIDs = []
-        g.elementIDs = []
+        # If missing
+        if 'physicalNames' not in self:
+            self.physicalNames = []
 
-        # TODO: Recursively find attached nodes, find by name
+    def elementBlocksBy(self, entityDim=None, physicalName=None):
+        blocks = []
 
+        # By entity dimension
         if entityDim is not None:
-            g.dimension = entityDim
-            for nb in self.nodeBlocks:
-                if nb.entityDim == entityDim:
-                    g.nodeIDs += nb.tags
             for eb in self.elementBlocks:
-                if eb.entityDim == entityDim:
-                    g.elementIDs += eb.tags
+                if eb.entityDimension == entityDim:
+                    blocks.append(eb)
 
-        return g
+        # By physical names
+        if physicalName is not None:
+            for eb in self.elementBlocks:
+                e = self.entityBy(dim=eb.entityDimension, tag=eb.entityTag)
+                for t in e.physicalTags:
+                    pn = self.physicalNameBy(t)
+                    if pn.name == physicalName:
+                        blocks.append(eb)
+
+        return blocks
+
+    def entityBy(self, dim, tag):
+        for e in self.allEntities:
+            if e.dimension == dim and e.tag == tag:
+                return e
+
+    def physicalNameBy(self, tag):
+        for pn in self.physicalNames:
+            if pn.tag == tag:
+                return pn
 
     @property
-    def groupNames(self):
+    def physicalNamesList(self):
         names = []
         for pn in self.physicalNames:
             names.append(pn.name)
         return names
+
+    @property
+    def allEntities(self):
+        return self.entities.points + self.entities.curves + \
+            self.entities.surfaces + self.entities.volumes
 
 
 def readElements(f):
@@ -73,7 +98,7 @@ def readElements(f):
         eb.tags = []
 
         # Description of element block
-        eb.entityDim, eb.entityTag, eb.elementType = textscan(f, '%d %d %d')
+        eb.entityDimension, eb.entityTag, eb.elementType = textscan(f, '%d %d %d')
 
         # Number of elements in block
         nElementsIB = textscan(f, '%d')[0]
@@ -116,23 +141,20 @@ def readNodes(f):
         nb = ObjDict()
 
         # Description of node block
-        nb.entityDim, nb.entityTag, parametric = textscan(f, '%d %d %d')
+        nb.entityDimension, nb.entityTag, parametric = textscan(f, '%d %d %d')
 
         # Number, tags and coordinates
         nNodesIB = textscan(f, '%d')[0]
         tags = textscan(f, nNodesIB * '%d ')
         coordinates = textscan(f, '%f %f %f', nNodesIB)
 
-        # Work around overly 'clever' textscan
+        # Work around overly clever textscan
         if nNodesIB == 1:
             coordinates = [coordinates]
 
         # Checks
-        assert len(tags) > 0
         if parametric != 0:
             raise Exception('Parametric geometry not supported yet')
-        if tags[-1] - tags[0] + 1 != nNodesIB:
-            raise Exception('Nodes in block not continously numbered') 
 
         # Save values
         nb.tags = []
@@ -144,7 +166,7 @@ def readNodes(f):
         blocks.append(nb)
 
     # Return
-    return blocks, np.array(nodes)
+    return blocks, nodes
 
 
 def readEntities(f):
@@ -161,7 +183,7 @@ def readPointSets(f, n, dim):
     ptss = []
     for i in range(0, n):
         p = ObjDict()
-        p.dim = dim
+        p.dimension = dim
         p.tag = textscan(f, '%d')[0]
         p.boundingBox = textscan(f, '%f %f %f %f %f %f')
         npt = textscan(f, '%d')[0]
@@ -176,6 +198,7 @@ def readPoints(f, n):
     pts = []
     for i in range(0, n):
         p = ObjDict()
+        p.dimension = 0
         p.tag, p.x, p.y, p.z = textscan(f, '%d %f %f %f')
         npt = textscan(f, '%d')[0]
         p.physicalTags = textscan(f, npt * '%d ')
@@ -189,9 +212,7 @@ def readPhysicalNames(f):
     d = textscan(f, '%d %d %q', n)
     for di in d:
         o = ObjDict()
-        o.dimension = di[0]
-        o.tag = di[1]
-        o.name = di[2]
+        o.dimension, o.tag, o.name = di
         pns.append(o)
     return pns
 
@@ -206,39 +227,6 @@ def readsection(f, s):
     line = f.readline().strip()
     while line and line != '$End' + s[1:]:
         line = f.readline().strip()
-
-
-def textscan(f, format, n=1):
-    """Poor man's version of Matlab textscan"""
-
-    # Converters
-    c = []
-    for s in format.split():
-        if s == '%d':
-            c.append(lambda s: int(s))
-        elif s == '%f':
-            c.append(lambda s: float(s))
-        elif s == '%q':
-            c.append(lambda s: s[1:-1])
-        else:
-            raise Exception('Illegal format: ' + s)
-    nt = len(c)
-
-    # Result
-    result = []
-    for i in range(0, n):
-        row = []
-        for j in range(0, nt):
-            convert = c[j]
-            token = nexttoken(f)
-            row.append(convert(token))
-        result.append(row)
-
-    # Return
-    if n == 1:
-        return result[0]
-    else:
-        return result
 
 
 def nexttoken(f):
@@ -256,3 +244,36 @@ def nexttoken(f):
 
     # return
     return c
+
+
+def textscan(f, format, n=1):
+    """Poor man's version of Matlab textscan"""
+
+    # Converters
+    parsers = []
+    for s in format.split():
+        if s == '%d':
+            parsers.append(lambda s: int(s))
+        elif s == '%f':
+            parsers.append(lambda s: float(s))
+        elif s == '%q':
+            parsers.append(lambda s: s[1:-1])
+        else:
+            raise Exception('Illegal format: ' + s)
+    np = len(parsers)
+
+    # Result
+    result = []
+    for i in range(0, n):
+        row = []
+        for j in range(0, np):
+            convert = parsers[j]
+            token = nexttoken(f)
+            row.append(convert(token))
+        result.append(row)
+
+    # Return
+    if n == 1:
+        return result[0]
+    else:
+        return result

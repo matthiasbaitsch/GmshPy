@@ -1,7 +1,7 @@
 SetFactory("OpenCASCADE");
 
 // Element size
-k = 2;
+k = 6;
 h = 0.5 / 2^k;
 
 // Geometry
