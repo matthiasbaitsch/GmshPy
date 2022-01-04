@@ -1,5 +1,6 @@
 from FEMesh import readmsh
 
+# Read the mesh
 m = readmsh('demos/gmsh/rectangle-0.msh')
 
 # Print nodes and elements

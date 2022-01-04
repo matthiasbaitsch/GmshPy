@@ -2,7 +2,7 @@ from objdict import ObjDict
 
 
 class GmshMesh(ObjDict):
-    """Python representation of a Gmsh MSH file plus some convenience methods.
+    """Python representation of a Gmsh MSH file plus some convenience methods. The implementation is based on ObjDict objects and not on classes as in the gmsh-mesh diagram.
 
     Note: Implementation is not complete.
     """
@@ -30,7 +30,7 @@ class GmshMesh(ObjDict):
             nexttoken(f)
             line = f.readline().strip()
 
-        # If missing
+        # If no physical groups are defined
         if 'physicalNames' not in self:
             self.physicalNames = []
 
@@ -46,20 +46,20 @@ class GmshMesh(ObjDict):
         # By physical names
         if physicalName is not None:
             for eb in self.elementBlocks:
-                e = self.entityBy(dim=eb.entityDimension, tag=eb.entityTag)
+                e = self._entityBy(dim=eb.entityDimension, tag=eb.entityTag)
                 for t in e.physicalTags:
-                    pn = self.physicalNameBy(t)
+                    pn = self._physicalNameBy(t)
                     if pn.name == physicalName:
                         blocks.append(eb)
 
         return blocks
 
-    def entityBy(self, dim, tag):
+    def _entityBy(self, dim, tag):
         for e in self.allEntities:
             if e.dimension == dim and e.tag == tag:
                 return e
 
-    def physicalNameBy(self, tag):
+    def _physicalNameBy(self, tag):
         for pn in self.physicalNames:
             if pn.tag == tag:
                 return pn

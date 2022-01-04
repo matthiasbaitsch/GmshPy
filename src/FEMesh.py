@@ -40,11 +40,10 @@ class FEMesh(object):
             addGroup(n, bs)
 
         # Simple mode: provide easy access
-        if len(m.physicalNames) == 0:
-            self.p = self.groups.faces.p
-            self.Ne = self.groups.faces.Ne
-            self.elements = self.groups.faces.elements
-            self.edgeNodeIDs = self.groups.edges.nodeIDs
+        self.p = self.groups.faces.p
+        self.Ne = self.groups.faces.Ne
+        self.elements = self.groups.faces.elements
+        self.edgeNodeIDs = self.groups.edges.nodeIDs
 
     @property
     def mode(self):
