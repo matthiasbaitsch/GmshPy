@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from objdict import ObjDict
 from GmshMesh import GmshMesh
 from palettable.colorbrewer.qualitative import Pastel1_9, Set1_9
+from palettable.scientific.sequential import Acton_20
 
 
 def readmsh(filename):
@@ -67,7 +68,7 @@ class FEMesh(object):
                 return i
         raise Exception(f'No node at ({x1}, {x2}) found')
 
-    def plot(self):
+    def plot(self, scalars=None):
 
         # Collect groups to plot
         groupsToPlot = []
@@ -76,30 +77,49 @@ class FEMesh(object):
                 groupsToPlot.append(g)
 
         # Prepare plot
-        _, ax1 = plt.subplots()
+        fig1, ax1 = plt.subplots()
         ax1.set_aspect('equal')
 
-        # Faces
-        cnt = 0
-        for g in groupsToPlot:
-            if g.dimension == 2:
-                c = g.Ne * [cnt]
-                ax1.tripcolor(
-                    self.nodes[0, :], self.nodes[1, :], g.elements.T,
-                    facecolors=c, cmap=Pastel1_9.mpl_colormap.reversed(), vmin=0, vmax=8,
-                    edgecolor='black', linewidth=0.5
-                )
-                cnt += 1
+        if scalars is None:
 
-        # Edges
-        cnt = 0
-        ec = np.array(Set1_9.colors) / 255
-        for g in groupsToPlot:
-            if g.dimension == 1:
-                x = self.nodes[0, g.elements]
-                y = self.nodes[1, g.elements]
-                plt.plot(x, y, c=ec[cnt, :])
-                cnt += 1
+            # Faces
+            cnt = 0
+            for g in groupsToPlot:
+                if g.dimension == 2:
+                    c = g.Ne * [cnt]
+                    ax1.tripcolor(
+                        self.nodes[0, :], self.nodes[1, :], g.elements.T,
+                        facecolors=c, cmap=Pastel1_9.mpl_colormap.reversed(), vmin=0, vmax=8,
+                        edgecolor='black', linewidth=0.5
+                    )
+                    cnt += 1
+
+            # Edges
+            cnt = 0
+            ec = np.array(Set1_9.colors) / 255
+            for g in groupsToPlot:
+                if g.dimension == 1:
+                    x = self.nodes[0, g.elements]
+                    y = self.nodes[1, g.elements]
+                    plt.plot(x, y, c=ec[cnt, :])
+                    cnt += 1
+
+        else:
+            cm = Acton_20.mpl_colormap.reversed()
+            if len(scalars) == self.Nn:
+                p = ax1.tripcolor(
+                    self.nodes[0, :], self.nodes[1, :], self.elements.T, scalars, 
+                    cmap=cm, shading='gouraud'
+                )
+                ax1.triplot(
+                    self.nodes[0, :], self.nodes[1, :], self.elements.T, color='black', linewidth=0.5
+                )
+            else:
+                p = ax1.tripcolor(
+                    self.nodes[0, :], self.nodes[1, :], self.elements.T, scalars,
+                    cmap=cm, edgecolor='black', linewidth=0.5
+                )
+            fig1.colorbar(p)
 
     def print(self):
         np.set_printoptions(linewidth=np.nan)
