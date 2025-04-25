@@ -13,7 +13,7 @@ def readmsh(filename):
 
 class FEMesh(object):
 
-    __slots__ = ['nodes', '_elements', 'groups', 'p', 'Ne', 'elements', 'edgeNodeIDs']
+    __slots__ = ['nodes', '_elements', 'groups', 'p', 'Ne', 'elements', 'edgeNodeIDs', 'edges', 'edgesOfElements', 'elementsOfEdges']
 
     def __init__(self, m: GmshMesh):
 
@@ -45,7 +45,7 @@ class FEMesh(object):
         self.Ne = self.groups.faces.Ne
         self.elements = self.groups.faces.elements
         self.edgeNodeIDs = self.groups.edges.nodeIDs
-
+                
     @property
     def mode(self):
         if len(self.groups) > 2:
@@ -60,6 +60,35 @@ class FEMesh(object):
     @property
     def groupNames(self):
         return list(self.groups.keys())
+    
+    def buildConnectivity(self):
+        self.edges = []
+        self.edgesOfElements = []
+        self.elementsOfEdges = []        
+        nodesToEdgeIndex = {}
+                
+        for i in range(0, self.elements.shape[1]):            
+            self.edgesOfElements.append([])
+            nodes = self.elements[:, i]
+            nn = len(nodes)
+
+            for j in range(0,nn):
+                n1 = nodes[j]
+                n2 = nodes[(j+1)%nn]
+                if n1 > n2:
+                    n1,n2 = n2,n1
+                edge = (n1, n2)
+                
+                if edge in nodesToEdgeIndex.keys():
+                    edgeIndex = nodesToEdgeIndex[edge]
+                else:
+                    edgeIndex = len(self.edges)
+                    nodesToEdgeIndex[edge] = edgeIndex
+                    self.edges.append([n1,n2])
+                    self.elementsOfEdges.append([])
+                    
+                self.edgesOfElements[i].append(edgeIndex)
+                self.elementsOfEdges[edgeIndex].append(i)
 
     def findNodeAt(self, x1, x2):
         x = np.array([x1, x2])
@@ -105,7 +134,7 @@ class FEMesh(object):
                     cnt += 1
 
         else:
-            cm = Acton_20.mpl_colormap.reversed()
+            cm = Acton_20.mpl_colormap
             if len(scalars) == self.Nn:
                 p = ax1.tripcolor(
                     self.nodes[0, :], self.nodes[1, :], self.elements.T, scalars, 
